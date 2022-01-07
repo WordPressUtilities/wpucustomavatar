@@ -3,11 +3,11 @@
 /*
 Plugin Name: WPU Custom Avatar
 Description: Override gravatar with a custom image.
-Version: 0.5.0
+Version: 0.6.0
 Author: Darklg
-Author URI: http://darklg.me/
+Author URI: https://darklg.me/
 License: MIT License
-License URI: http://opensource.org/licenses/MIT
+License URI: https://opensource.org/licenses/MIT
 */
 
 class wpuCustomAvatar {
@@ -18,17 +18,16 @@ class wpuCustomAvatar {
 
         $this->meta_id = apply_filters('wpucustomavatar_metaname', 'user_custom_avatar');
 
-        // Retrieve custom avatar
+        /* Retrieve custom avatar */
         add_filter('get_avatar_data', array(&$this,
             'get_avatar_data'
         ), 1, 2);
 
-        // Hide default avatar field
+        /* Hide default avatar field */
         add_filter('admin_notices', array(&$this,
             'hide_default_avatar_field'
         ));
-
-        // Add user metas fields
+        /* Add user metas fields */
         add_filter('wpu_usermetas_sections', array(&$this,
             'set_usermetas_sections'
         ), 10, 3);
@@ -39,6 +38,28 @@ class wpuCustomAvatar {
 
     /* Getter */
     public function get_avatar_data($args, $id_or_email) {
+        $user = $this->get_user($id_or_email);
+
+        if (!$user) {
+            return $args;
+        }
+
+        /* Get user avatar */
+        $user_img = get_user_meta($user->data->ID, $this->meta_id, 1);
+        if (is_numeric($user_img)) {
+            $avatar_arr = wp_get_attachment_image_src($user_img, array($args['width'], $args['height']));
+            if (is_array($avatar_arr)) {
+                $args['url'] = $avatar_arr[0];
+                $args['width'] = $avatar_arr[1];
+                $args['height'] = $avatar_arr[2];
+            }
+        }
+
+        return $args;
+    }
+
+    /* Get an user from  */
+    public function get_user($id_or_email) {
         $user = false;
 
         /* Get user details */
@@ -54,26 +75,19 @@ class wpuCustomAvatar {
             $user = get_user_by('email', $id_or_email);
         }
 
-        /* Get user avatar */
-        if ($user && is_object($user)) {
-            $user_img = get_user_meta($user->data->ID, $this->meta_id, 1);
-            if (is_numeric($user_img)) {
-                $avatar_arr = wp_get_attachment_image_src($user_img, array($args['width'], $args['height']));
-                if (is_array($avatar_arr)) {
-                    $args['url'] = $avatar_arr[0];
-                    $args['width'] = $avatar_arr[1];
-                    $args['height'] = $avatar_arr[2];
-                }
-            }
+        if (!is_object($user) || !isset($user->data->ID)) {
+            $user = false;
         }
-        return $args;
+
+        return $user;
+
     }
 
     /* Admin */
     public function hide_default_avatar_field() {
         $screen = get_current_screen();
 
-        // Not profile
+        /* Not profile */
         if (!is_object($screen) || ($screen->base != 'profile' && $screen->base != 'user-edit')) {
             return false;
         }
@@ -82,13 +96,13 @@ class wpuCustomAvatar {
             return false;
         }
 
-        // Get user custom avatar
+        /* Get user custom avatar */
         $user_img = get_user_meta($user_id, $this->meta_id, 1);
         if (!is_numeric($user_img)) {
             return false;
         }
 
-        // Disable avatar preview in content
+        /* Disable avatar preview in content */
         add_filter('option_show_avatars', '__return_false');
     }
 
@@ -111,7 +125,7 @@ class wpuCustomAvatar {
 
 }
 
-add_action('init', 'wpucustomavatar_init', 50, 0);
+add_action('plugins_loaded', 'wpucustomavatar_init', 5, 0);
 function wpucustomavatar_init() {
     $wpuCustomAvatar = new wpuCustomAvatar();
 }
