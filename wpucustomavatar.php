@@ -1,11 +1,16 @@
 <?php
+defined('ABSPATH') || die;
 
 /*
 Plugin Name: WPU Custom Avatar
 Description: Override gravatar with a custom image.
-Version: 0.6.0
+Version: 0.7.0
 Author: Darklg
 Author URI: https://darklg.me/
+Text Domain: wpucustomavatar
+Requires at least: 6.2
+Requires PHP: 8.0
+Network: Optional
 License: MIT License
 License URI: https://opensource.org/licenses/MIT
 */
@@ -13,10 +18,12 @@ License URI: https://opensource.org/licenses/MIT
 class wpuCustomAvatar {
 
     private $meta_id;
+    private $meta_details_id;
 
     public function __construct() {
 
         $this->meta_id = apply_filters('wpucustomavatar_metaname', 'user_custom_avatar');
+        $this->meta_details_id = apply_filters('wpucustomavatar_metadetailsname', 'user_custom_avatar_details');
 
         /* Retrieve custom avatar */
         add_filter('get_avatar_data', array(&$this,
@@ -34,6 +41,11 @@ class wpuCustomAvatar {
         add_filter('wpu_usermetas_fields', array(&$this,
             'set_usermetas_fields'
         ), 10, 3);
+
+        /* Save avatar image details */
+        add_filter('profile_update', array(&$this,
+            'save_user_avatar'
+        ), 10, 2);
     }
 
     /* Getter */
@@ -46,13 +58,17 @@ class wpuCustomAvatar {
 
         /* Get user avatar */
         $user_img = get_user_meta($user->data->ID, $this->meta_id, 1);
+        $avatar_details = array();
         if (is_numeric($user_img)) {
-            $avatar_arr = wp_get_attachment_image_src($user_img, array($args['width'], $args['height']));
-            if (is_array($avatar_arr)) {
-                $args['url'] = $avatar_arr[0];
-                $args['width'] = $avatar_arr[1];
-                $args['height'] = $avatar_arr[2];
-            }
+            $avatar_details = wp_get_attachment_image_src($user_img, array($args['width'], $args['height']));
+        }
+        if (!is_array($avatar_details)) {
+            $avatar_details = get_user_meta($user->data->ID, $this->meta_details_id, 1);
+        }
+        if (is_array($avatar_details) && isset($avatar_details[0]) && isset($avatar_details[1]) && isset($avatar_details[2])) {
+            $args['url'] = $avatar_details[0];
+            $args['width'] = $avatar_details[1];
+            $args['height'] = $avatar_details[2];
         }
 
         return $args;
@@ -121,6 +137,20 @@ class wpuCustomAvatar {
             'section' => 'wpu_custom_avatar'
         );
         return $fields;
+    }
+
+    /* Save avatar image details */
+    public function save_user_avatar($user_id) {
+        if (!isset($_POST[$this->meta_id]) || !is_numeric($_POST[$this->meta_id])) {
+            return false;
+        }
+
+        $image = wp_get_attachment_image_src((int) $_POST[$this->meta_id], 'thumbnail');
+        if (!is_array($image)) {
+            return false;
+        }
+
+        update_user_meta($user_id, $this->meta_details_id, $image);
     }
 
 }
